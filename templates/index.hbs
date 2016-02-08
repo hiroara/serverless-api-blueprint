@@ -1,0 +1,33 @@
+FORMAT: {{format}}
+
+# {{displayName}}
+
+{{description}}
+{{#each resources}}
+
+## {{this.displayName}} [{{this.path}}]
+{{#if this.description}}
+
+{{this.description}}
+{{/if}}
+
+{{#each this.actions}}
+### {{this.displayName}} [{{this.method}}]
+{{#if this.description}}
+
+{{this.description}}
+{{/if}}
+{{#if this.request}}
+
++ Request ({{this.request.contentType}})
+
+{{this.request.body}}
+{{/if}}
+{{#if this.response}}
+
++ Response {{this.response.statusCode}} ({{this.response.contentType}})
+
+{{this.response.body}}
+{{/if}}
+{{/each}}
+{{/each}}

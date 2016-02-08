@@ -1,0 +1,27 @@
+rules:
+  indent:
+    - 2
+    - 2
+  quotes:
+    - 2
+    - single
+  linebreak-style:
+    - 2
+    - unix
+  semi:
+    - 2
+    - never
+  no-console: 0
+  comma-dangle:
+    - 2
+    - always-multiline
+env:
+  es6: true
+  node: true
+extends: 'eslint:recommended'
+globals:
+  describe: true
+  context: true
+  beforeEach: true
+  afterEach: true
+  it: true

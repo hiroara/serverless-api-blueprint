@@ -1,48 +1,154 @@
-Serverless Plugin Boilerplate
+Serverless API Blueprint
 =============================
 
-This is a starter project to help you build plugins for the Serverless Framework.  You can install this boilerplate Plugin in its current form into your Serverless Projects and it will run.  All that's left for you to do is write your custom logic.  We've filled this with useful comments to help you along your way.  Also, the entire Serverless Framework is comprised of Plugins.  When you write your own Plugin, it's no hack, you're simply extending and customizing the Serverless Framework to suite your needs and build processes :)
+This is API Documentation generator plugin for [Serverless](http://www.serverless.com/) project.
+API Documentations are generated as [API Blueprint](https://apiblueprint.org/) format.
 
-**Note:** Serverless *v0.1.0* or higher is required.
+## Getting Started
 
-**A Serverless Plugin can do the following:**
+You can install with following steps.
 
-* Add a Custom Action to the Serverless Framework which can be called via the command line, programatically via a handler, or both.
-* Add a Custom Action that overwrites a Core Action in the Serverless Framework.
-* Add a Custom Hook that fires *before* or *after* a Core Action or a Custom Action.
+### Install the plugin
 
-One plugin can do all of the above, and include several Hooks and Actions at once.
+    npm install --save git+https://github.com/hiroara/serverless-api-blueprint.git
 
-###Get Started
+### Configure your project
 
-* Plugins must be written in a Serverless Project, so create one specifically for authoring/testing plugins, or write your plugin in a Project you are working on, and make sure you are using Serverless `v0.1.0` or greater.
+All configurations are defined under `apib` namespace.
 
-* cd into your Serverless Project, create a "plugins" folder and download this boilerplate project into it.  The "plugins" folder is specifically for developing plugins.  Give this boilerplate's folder a custom title.
+#### Project level (`s-project.json`)
 
-* Update the boilerplate's `package.json` "name" property with your plugin's name.
-
-* cd into your new plugin and run:
-```
-npm link
-```
-
-* cd into your Serverless Project's root folder and run:
-```
-npm link <yourpluginname>
-```
-
-* Lastly, open the 's-project.json' in your Project's root folder and add the plugin to the `plugins` property, like this:
+- `targets`
+  - Names of target components to generate docs.
+  - Default: All components
 
 ```
-"plugins": [
-	"my-custom-plugin"
-]
+{
+  ...
+  "custom": {
+    "apib": {
+      "targets": ["restApi"]
+    }
+  },
+  ...
+}
 ```
 
-* Use the Serverless CLI within your project and run `serverless` to see the help screen.  You should now see an option entitled `custom` with a `run` Action.  This was added by the boilerplate plugin.
+#### Component level (`<componentDir>/s-component.json`)
 
-* Now, your custom plugin is installed and ready to be worked on!  Read the comments in the `index.js` for further instructions.
+Each components on Serverless framework are used as an independent API.
 
-If you would like to learn more about plugins, please check out our [Documentation](http://docs.serverless.com).
+Thus each API Documentations are generated per component.
 
-Good luck! - [Serverless](http://www.serverless.com)
+- `format`
+  - Format type defined in API Blueprint
+  - Supported values are `1A` only.
+  - Default: `1A`
+- `name`
+  - Readable name of the API
+  - Default: Component name (defined in `s-component.json` at path `name`)
+- `description`
+  - Description of the API
+  - Default: Blank
+
+```
+{
+  ...
+  "custom": {
+    "apib": {
+      "format": "1A",
+      "name": "Awesome REST API",
+      "description": "This is Awesome REST API!"
+    }
+  },
+  ...
+}
+```
+
+#### Module level (`<componentDir>/<moduleDir>/s-module.json`)
+
+Modules on Serverless framework are used as resources.
+
+This plugin uses modules as parent definitions of each endpoints.
+
+For examples, there are endpoints defined in a module with different methods and same path.
+Then these endpoints are described as same resource defined with informations of the module.
+
+But these endpoints are defined with difference paths, then it will generate multiple resources with informations of same module.
+
+- `name`
+  - Readable name of resouces
+  - Default: Component name (defined in `s-component.json` at path `name`)
+- `description`
+  - Description of resources
+  - Default: Blank
+
+```
+{
+  ...
+  "custom": {
+    "apib": {
+      "name": "Cool Resource",
+      "description": "This is very cool resource!"
+    }
+  },
+  ...
+}
+```
+
+#### Function level (`<componentDir>/<moduleDir>/<actionDir>/s-action.json`)
+
+Functions on Serverless framework are used as actions.
+
+This plugin often uses each functions on Serverless framework as multiple actions on API Blueprint, because each functions can have multiple endpoints.
+
+- `name`
+  - Readable name of actions
+  - Default: Function name (defined in `s-function.json` at path `name`)
+- `description`
+  - Description of actions
+  - Default: Blank
+- `request`
+  - Indicator of whether or not to generate request example
+  - Can contain additional information
+  - Default: `false` (Do not generate)
+- `request.contentType`
+  - Content type of the request
+  - Default: `application/json`
+- `response`
+  - Indicator of whether or not to generate response example
+  - Can contain additional information
+  - Default: `false` (Do not generate)
+- `response.contentType`
+  - Content type of the request
+  - Default: `application/json`
+
+```
+{
+  ...
+  "custom": {
+    "apib": {
+      "name": "Create an Cool Resource",
+      "description": "Create an cool resource. You should call this API!",
+      "request": {
+        "contentType": "application/json"
+      },
+      "response": true
+    }
+  },
+  ...
+}
+```
+
+
+## Usage
+
+You can generate docs following command.
+
+    sls apib generate
+
+Or execute with `--targets` or `-t` option (comma separated).
+
+    sls apib generate --target restApiV1,restApiV2
+
+Enjoy!

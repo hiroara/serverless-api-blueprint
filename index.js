@@ -1,4 +1,4 @@
-'use strict';
+'use strict'
 
 /**
  * Serverless Plugin Boilerplate
@@ -20,9 +20,14 @@
 
 module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPlugin Class
 
-  const path    = require('path'),
-      fs        = require('fs'),
-      BbPromise = require('bluebird'); // Serverless uses Bluebird Promises and we recommend you do to because they provide more than your average Promise :)
+  const path = require('path')
+  const util = require('util')
+  const _ = require('lodash')
+  const BbPromise = require('bluebird') // Serverless uses Bluebird Promises and we recommend you do to because they provide more than your average Promise :)
+  const fs = BbPromise.promisifyAll(require('fs'))
+  const Handlebars = require('handlebars')
+  const mkdirp = BbPromise.promisify(require('mkdirp'))
+  const chalk = require('chalk')
 
   /**
    * ServerlessPluginBoierplate
@@ -36,7 +41,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
      */
 
     constructor(S) {
-      super(S);
+      super(S)
     }
 
     /**
@@ -45,7 +50,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
      */
 
     static getName() {
-      return 'com.serverless.' + ServerlessPluginBoilerplate.name;
+      return 'com.ari-hiro.' + ServerlessPluginBoilerplate.name
     }
 
     /**
@@ -58,26 +63,35 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
 
     registerActions() {
 
-      this.S.addAction(this._customAction.bind(this), {
-        handler:       'customAction',
-        description:   'A custom action from a custom plugin',
-        context:       'custom',
-        contextAction: 'run',
-        options:       [{ // These must be specified in the CLI like this "-option true" or "-o true"
-          option:      'option',
-          shortcut:    'o',
-          description: 'test option 1'
-        }],
+      this.S.addAction(this._generateDocs.bind(this), {
+        handler:       'generateDocs',
+        description:   'Generate API Documentation formatted as API Blueprint.',
+        context:       'apib',
+        contextAction: 'generate',
+        options:       [
+          {
+            option:      'targets',
+            shortcut:    't',
+            description: 'target components',
+          },
+          {
+            option:      'out',
+            shortcut:    'o',
+            description: 'output directory path',
+          },
+        ],
         parameters: [ // Use paths when you multiple values need to be input (like an array).  Input looks like this: "serverless custom run module1/function1 module1/function2 module1/function3.  Serverless will automatically turn this into an array and attach it to evt.options within your plugin
+          /*
           {
             parameter: 'paths',
             description: 'One or multiple paths to your function',
             position: '0->' // Can be: 0, 0-2, 0->  This tells Serverless which params are which.  3-> Means that number and infinite values after it.
           }
-        ]
-      });
+          */
+        ],
+      })
 
-      return BbPromise.resolve();
+      return BbPromise.resolve()
     }
 
     /**
@@ -87,45 +101,179 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
      */
 
     registerHooks() {
-
-      this.S.addHook(this._hookPre.bind(this), {
-        action: 'functionRunLambdaNodeJs',
-        event:  'pre'
-      });
-
-      this.S.addHook(this._hookPost.bind(this), {
-        action: 'functionRunLambdaNodeJs',
-        event:  'post'
-      });
-
-      return BbPromise.resolve();
+      return BbPromise.resolve()
     }
 
-    /**
-     * Custom Action Example
-     * - Here is an example of a Custom Action.  Include this and modify it if you would like to write your own Custom Action for the Serverless Framework.
-     * - Be sure to ALWAYS accept and return the "evt" object, or you will break the entire flow.
-     * - The "evt" object contains Action-specific data.  You can add custom data to it, but if you change any data it will affect subsequent Actions and Hooks.
-     * - You can also access other Project-specific data @ this.S Again, if you mess with data on this object, it could break everything, so make sure you know what you're doing ;)
-     */
+    _generateDocs(evt) {
 
-    _customAction(evt) {
-
-      let _this = this;
+      let _this = this
 
       return new BbPromise(function (resolve, reject) {
 
-        // console.log(evt)           // Contains Action Specific data
-        // console.log(_this.S)       // Contains Project Specific data
-        // console.log(_this.S.state) // Contains tons of useful methods for you to use in your plugin.  It's the official API for plugin developers.
+        _this._logHeader('Parse configurations')
 
-        console.log('-------------------');
-        console.log('YOU JUST RAN YOUR CUSTOM ACTION, NICE!');
-        console.log('-------------------');
+        const targetComponents = _this._getTargetComponents(
+          _this._getTargets(evt, _this.S.state.project.custom),
+          _this.S.state.project.components
+        )
 
-        return resolve(evt);
+        return BbPromise.mapSeries(targetComponents,
+          component => _this._parseComponent.call(_this, component)
+        ).then(componentData => {
 
-      });
+          _this._logHeader('\nGenerate documentations')
+
+          const output = path.resolve('.', evt.options.out ? evt.options.out : 'docs')
+
+          BbPromise.map(['./templates/index.hbs'], templatePath => {
+            return fs.readFileAsync(path.join(__dirname, templatePath), 'utf8')
+          })
+            .spread((indexTemplate) => { return { index: Handlebars.compile(indexTemplate, { noEscape: true }) } })
+            .then(templates => {
+              return componentData.map((data) => {
+                return {
+                  name: data.name,
+                  path: path.join(output, data.name + '.apib'),
+                  body: templates.index(data),
+                }
+              })
+            })
+            .then(docs => {
+              return BbPromise.all(docs.map(doc => {
+                _this._logSuccess(chalk.green(util.format('Generate docs for component "%s" at "%s"...', doc.name, doc.path)))
+                return mkdirp(path.dirname(doc.path))
+                  .then(() => fs.writeFileAsync(doc.path, doc.body))
+              }))
+            })
+            .then(() => _this._logSuccess('\nAPI Docs are generated successfully!'))
+            .then(resolve)
+        })
+      })
+    }
+
+    _getTargets(evt, projectCustom) {
+      return evt.options.targets ?
+        evt.options.targets.split(',') : _.result(projectCustom, 'apib.targets')
+    }
+    _getTargetComponents(targets, components) {
+      return targets ? targets.map(target =>
+        _.tap(components[target], component => {
+          if (component == null) { throw util.format('Unknown target named "%s"', target) }
+        })
+      ) : _.values(components)
+    }
+
+    _parseComponent(component) {
+      this._logSuccess(util.format('=> Component: %s', component.name))
+      const format = _.result(component.custom, 'apib.format') || '1A'
+      if (format != '1A') { throw util.format('Unsupported format: "%s"', format) }
+      return BbPromise.mapSeries(_.values(component.modules), module => this._parseModule(module, component.name))
+        .then(_.flatten)
+        .then(resources => {
+          return {
+            name: component.name,
+            displayName: _.result(component.custom, 'apib.name') || component.name,
+            description: _.result(component.custom, 'apib.description'),
+            format: format,
+            resources: resources,
+          }
+        })
+    }
+    _parseModule(module, ns) {
+      this._logSuccess('  => Module: ' + module.name)
+      const data = {
+        name: module.name,
+        displayName: _.result(module.custom, 'apib.name') || module.name,
+        description: _.result(module.custom, 'apib.description'),
+      }
+      const modulePath = [ns, module.name].join('/')
+      return BbPromise.mapSeries(_.values(module.functions), func =>
+        this._parseFunction(func, modulePath)
+      )
+        .then(_.flatten)
+        .then(resources => resources.map(resource => _.assign(resource, data)))
+    }
+    _parseFunction(func, ns) {
+      this._logSuccess('    => Function: ' + func.name)
+      const funcPath = [ns, func.name].join('/')
+      const endpoints = func.endpoints.map(endpoint => this._generateDocsOfEndpoint(endpoint))
+      const data = fs.readFileAsync(path.join(this.S.config.projectPath, funcPath, 'event.json'), 'utf8')
+        .then(requestBody => _.tap({
+          name: func.name,
+          displayName: _.result(func.custom, 'apib.name') || func.name,
+          description: _.result(func.custom, 'apib.description'),
+          request: _.result(func.custom, 'apib.request'),
+          response: _.result(func.custom, 'apib.response'),
+        }, data => {
+          if (data.request === true) { data.request = {} }
+          if (data.request != null) {
+            _.defaults(data.request, { contentType: 'application/json' })
+            data.request.body = requestBody
+          }
+        }))
+      return BbPromise.join(this._invokeFunction(funcPath), data)
+        .spread((result, data) => {
+          console.log(data)
+          const actionData = this._buildActionData(data, result)
+          console.log(actionData)
+          return _.chain(endpoints).groupBy(endpoint => endpoint.path).map((actions, path) => {
+            return {
+              path: path,
+              actions: actions.map(action => _.assign(action, actionData)),
+            }
+          }).value()
+        })
+    }
+    _generateDocsOfEndpoint(endpoint) {
+      this._logSuccess('      => Endpoint: ' + endpoint.method + ' ' + endpoint.path)
+      return {
+        method: endpoint.method,
+        path: endpoint.path,
+      }
+    }
+
+    _invokeFunction(funcPath) {
+      this._logSuccess(util.format('>>> Invoke function: %s', funcPath))
+      return this.S.actions.functionRun({ options: { path: funcPath } })
+        .tap(() => this._logSuccess(util.format('<<< Finish function: %s', funcPath)))
+    }
+
+    _buildActionData(data, functionResult) {
+      return _.chain(data).clone().tap(data => {
+        if (data.response === true) { data.response = {} }
+        if (data.response != null) {
+          _.defaults(data.response, { contentType: 'application/json' })
+          _.assign(data.response, {
+            status: functionResult.data.result.status,
+            statusCode: this._statusCodeFor(functionResult.data.result.status),
+            body: this._prettyJSONStringify(functionResult.data.result.response, 2),
+          })
+        }
+      }).value()
+    }
+
+    _statusCodeFor(status) {
+      switch(status) {
+      case 'success': return 200
+      default: throw util.format('Unsupported response status: %s', status)
+      }
+    }
+
+    _prettyJSONStringify(obj, indent) {
+      const indentString = _.times(indent, _.constant(' ')).join('')
+      return JSON.stringify(obj, null, 2)
+        .split('\n')
+        .map(line => indentString + line).join('\n')
+    }
+
+    _logHeader(msg) {
+      console.log(chalk.black.bgGreen.bold(msg))
+    }
+    _logSuccess(msg) {
+      console.log(chalk.green(msg))
+    }
+    _logFailure(msg) {
+      console.log(chalk.red(msg))
     }
 
     /**
@@ -138,17 +286,17 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
 
     _hookPre(evt) {
 
-      let _this = this;
+      let _this = this
 
       return new BbPromise(function (resolve, reject) {
 
-        console.log('-------------------');
-        console.log('YOUR SERVERLESS PLUGIN\'S CUSTOM "PRE" HOOK HAS RUN BEFORE "FunctionRunLambdaNodeJs"');
-        console.log('-------------------');
+        console.log('-------------------')
+        console.log('YOUR SERVERLESS PLUGIN\'S CUSTOM "PRE" HOOK HAS RUN BEFORE "FunctionRunLambdaNodeJs"')
+        console.log('-------------------')
 
-        return resolve(evt);
+        return resolve(evt)
 
-      });
+      })
     }
 
     /**
@@ -161,23 +309,23 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
 
     _hookPost(evt) {
 
-      let _this = this;
+      let _this = this
 
       return new BbPromise(function (resolve, reject) {
 
-        console.log('-------------------');
-        console.log('YOUR SERVERLESS PLUGIN\'S CUSTOM "POST" HOOK HAS RUN AFTER "FunctionRunLambdaNodeJs"');
-        console.log('-------------------');
+        console.log('-------------------')
+        console.log('YOUR SERVERLESS PLUGIN\'S CUSTOM "POST" HOOK HAS RUN AFTER "FunctionRunLambdaNodeJs"')
+        console.log('-------------------')
 
-        return resolve(evt);
+        return resolve(evt)
 
-      });
+      })
     }
   }
 
   // Export Plugin Class
-  return ServerlessPluginBoilerplate;
+  return ServerlessPluginBoilerplate
 
-};
+}
 
 // Godspeed!
