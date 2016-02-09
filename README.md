@@ -4,6 +4,8 @@ Serverless API Blueprint
 This is API Documentation generator plugin for [Serverless](http://www.serverless.com/) project.
 API Documentations are generated as [API Blueprint](https://apiblueprint.org/) format.
 
+This can embed `event.json` as request body and actual response to docs to help your API development.
+
 ## Getting Started
 
 You can install with following steps.
