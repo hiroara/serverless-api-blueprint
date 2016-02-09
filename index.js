@@ -108,7 +108,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
 
       let _this = this
 
-      return new BbPromise(function (resolve, reject) {
+      return new BbPromise(function (resolve) {
 
         _this._logHeader('Parse configurations')
 
@@ -274,52 +274,6 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
     }
     _logFailure(msg) {
       console.log(chalk.red(msg))
-    }
-
-    /**
-     * Your Custom PRE Hook
-     * - Here is an example of a Custom PRE Hook.  Include this and modify it if you would like to write your a hook that fires BEFORE an Action.
-     * - Be sure to ALWAYS accept and return the "evt" object, or you will break the entire flow.
-     * - The "evt" object contains Action-specific data.  You can add custom data to it, but if you change any data it will affect subsequent Actions and Hooks.
-     * - You can also access other Project-specific data @ this.S Again, if you mess with data on this object, it could break everything, so make sure you know what you're doing ;)
-     */
-
-    _hookPre(evt) {
-
-      let _this = this
-
-      return new BbPromise(function (resolve, reject) {
-
-        console.log('-------------------')
-        console.log('YOUR SERVERLESS PLUGIN\'S CUSTOM "PRE" HOOK HAS RUN BEFORE "FunctionRunLambdaNodeJs"')
-        console.log('-------------------')
-
-        return resolve(evt)
-
-      })
-    }
-
-    /**
-     * Your Custom POST Hook
-     * - Here is an example of a Custom POST Hook.  Include this and modify it if you would like to write your a hook that fires AFTER an Action.
-     * - Be sure to ALWAYS accept and return the "evt" object, or you will break the entire flow.
-     * - The "evt" object contains Action-specific data.  You can add custom data to it, but if you change any data it will affect subsequent Actions and Hooks.
-     * - You can also access other Project-specific data @ this.S Again, if you mess with data on this object, it could break everything, so make sure you know what you're doing ;)
-     */
-
-    _hookPost(evt) {
-
-      let _this = this
-
-      return new BbPromise(function (resolve, reject) {
-
-        console.log('-------------------')
-        console.log('YOUR SERVERLESS PLUGIN\'S CUSTOM "POST" HOOK HAS RUN AFTER "FunctionRunLambdaNodeJs"')
-        console.log('-------------------')
-
-        return resolve(evt)
-
-      })
     }
   }
 
