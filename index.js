@@ -213,9 +213,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
         }))
       return BbPromise.join(this._invokeFunction(funcPath), data)
         .spread((result, data) => {
-          console.log(data)
           const actionData = this._buildActionData(data, result)
-          console.log(actionData)
           return _.chain(endpoints).groupBy(endpoint => endpoint.path).map((actions, path) => {
             return {
               path: path,
