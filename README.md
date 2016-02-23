@@ -124,6 +124,28 @@ This plugin often uses each functions on Serverless framework as multiple action
 - `response.contentType`
   - Content type of the request
   - Default: `application/json`
+- `parameters`
+  - Parameter definitions
+  - Can contain additional information
+  - Default: Empty
+- `parameters.<parameter name>.type`
+  - Parameter type as expected by the API
+  - Default: `string`
+- `parameters.<parameter name>.required`
+  - Specifier of a required parameter
+  - Default: `string`
+- `parameters.<parameter name>.example`
+  - Example value of the parameter
+  - Default: None
+- `parameters.<parameter name>.default`
+  - Default value of the parameter
+  - Default: None
+- `parameters.<parameter name>.description`
+  - Description of the parameter
+  - Default: Blank
+- `parameters.<parameter name>.additionalDescription`
+  - Additional description of the parameter
+  - Default: None
 
 ```
 {
@@ -135,7 +157,18 @@ This plugin often uses each functions on Serverless framework as multiple action
       "request": {
         "contentType": "application/json"
       },
-      "response": true
+      "response": true,
+      "parameters": {
+        ...
+        "username": {
+          "type": "string",
+          "example": "test_user",
+          "description": "Name or email of the user",
+          "additionalDescription": "This parameter will be recognized whether name or email automatically.",
+          "required": true
+        },
+        ...
+      }
     }
   },
   ...
