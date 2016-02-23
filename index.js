@@ -18,14 +18,22 @@
  * - Good luck, serverless.com :)
  */
 
+const _ = require('lodash')
+const Handlebars = require('handlebars')
+Handlebars.registerHelper('indent', (data, level) => {
+  const indent = _.times(level, () => ' ').join('')
+  return new Handlebars.SafeString(data.replace(/(^|\n)/g, '$1' + indent))
+})
+Handlebars.registerHelper('default', (value, defaultValue) => {
+  return new Handlebars.SafeString(value || defaultValue)
+})
+
 module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPlugin Class
 
   const path = require('path')
   const util = require('util')
-  const _ = require('lodash')
   const BbPromise = require('bluebird') // Serverless uses Bluebird Promises and we recommend you do to because they provide more than your average Promise :)
   const fs = BbPromise.promisifyAll(require('fs'))
-  const Handlebars = require('handlebars')
   const mkdirp = BbPromise.promisify(require('mkdirp'))
   const chalk = require('chalk')
 
@@ -204,6 +212,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           description: _.result(func.custom, 'apib.description'),
           request: _.result(func.custom, 'apib.request'),
           response: _.result(func.custom, 'apib.response'),
+          parameters: _.result(func.custom, 'apib.parameters'),
         }, data => {
           if (data.request === true) { data.request = {} }
           if (data.request != null) {

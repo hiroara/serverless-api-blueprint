@@ -17,6 +17,22 @@ FORMAT: {{format}}
 
 {{this.description}}
 {{/if}}
+{{#if this.parameters}}
+
++ Parameters
+{{#each this.parameters}}
+
+  + {{@key}}: {{#if this.example}}`{{this.example}}` {{/if}}({{default this.type 'string'}}, {{#if this.required}}required{{else}}optional{{/if}}) - {{this.description}}
+{{#if this.additionalDescription}}
+
+{{indent this.additionalDescription 4}}
+{{/if}}
+{{#if this.default}}
+
+    + Default: `{{this.default}}`
+{{/if}}
+{{/each}}
+{{/if}}
 {{#if this.request}}
 
 + Request ({{this.request.contentType}})
