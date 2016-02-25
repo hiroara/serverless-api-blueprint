@@ -78,6 +78,16 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
         contextAction: 'generate',
         options:       [
           {
+            option:      'region',
+            shortcut:    'r',
+            description: 'region you want to list env vars for',
+          },
+          {
+            option:      'stage',
+            shortcut:    's',
+            description: 'stage you want to list env vars for',
+          },
+          {
             option:      'targets',
             shortcut:    't',
             description: 'target components',
@@ -114,7 +124,9 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
 
     _generateDocs(evt) {
 
-      let _this = this
+      const _this = this
+      const stage = evt.options.stage || this.S.state.getStages()[0]
+      const region = evt.options.region || this.S.state.getRegions(stage)[0]
 
       return new BbPromise(function (resolve) {
 
@@ -126,7 +138,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
         )
 
         return BbPromise.mapSeries(targetComponents,
-          component => _this._parseComponent.call(_this, component)
+          component => _this._parseComponent.call(_this, component.getPopulated({ stage: stage, region: region }))
         ).then(componentData => {
 
           _this._logHeader('\nGenerate documentations')
@@ -218,7 +230,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       const funcPath = [ns, func.name].join('/')
       const endpoints = func.endpoints.map(endpoint => this._generateDocsOfEndpoint(endpoint))
       const data = fs.readFileAsync(path.join(this.S.config.projectPath, funcPath, 'event.json'), 'utf8')
-        .then(requestBody => _.tap({
+        .then(event => _.tap({
           name: func.name,
           displayName: _.result(func.custom, 'apib.name') || func.name,
           description: _.result(func.custom, 'apib.description'),
@@ -230,10 +242,14 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           if (data.request === true) { data.request = {} }
           if (data.request != null) {
             _.defaults(data.request, { contentType: 'application/json' })
-            if (data.attributes == null) {
-              data.request.body = requestBody
-            } else if (data.request.contentType === 'application/json') {
-              const body = JSON.parse(requestBody)
+
+            const bodyPath = _.result(data.request, 'eventStructure.body')
+            if (data.request.contentType !== 'application/json') {
+              data.request.body = event
+            } else if (data.attributes == null) {
+              data.request.body = this._prettyJSONStringify(this._getBody(JSON.parse(event), bodyPath))
+            } else {
+              const body = this._getBody(JSON.parse(event), bodyPath)
               _.each(data.attributes, (attribute, key) => {
                 attribute.example = body[key]
               })
@@ -284,6 +300,10 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       case 'success': return 200
       default: throw util.format('Unsupported response status: %s', status)
       }
+    }
+
+    _getBody(eventData, bodyPath) {
+      return bodyPath == null ? eventData : _.result(eventData, bodyPath, {})
     }
 
     _prettyJSONStringify(obj) {
