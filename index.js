@@ -133,16 +133,21 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
 
           const output = path.resolve('.', evt.options.out ? evt.options.out : 'docs')
 
-          BbPromise.map(['./templates/index.hbs'], templatePath => {
+          BbPromise.map(['./templates/index.hbs', './templates/attributes.hbs', './templates/parameters.hbs', './templates/attributes-item.hbs'], templatePath => {
             return fs.readFileAsync(path.join(__dirname, templatePath), 'utf8')
           })
-            .spread((indexTemplate) => { return { index: Handlebars.compile(indexTemplate, { noEscape: true }) } })
+            .spread((indexTemplate, attributesTemplate, parametersTemplate, attributesItemTemplate) => {
+              Handlebars.registerPartial('attributes', attributesTemplate)
+              Handlebars.registerPartial('parameters', parametersTemplate)
+              Handlebars.registerPartial('attributesItem', attributesItemTemplate)
+              return { index: Handlebars.compile(indexTemplate, { noEscape: true }) }
+            })
             .then(templates => {
               return componentData.map((data) => {
                 return {
                   name: data.name,
                   path: path.join(output, data.name + '.apib'),
-                  body: templates.index(data),
+                  body: templates.index(data).replace(/ +$/gm, ''),
                 }
               })
             })
@@ -225,7 +230,14 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           if (data.request === true) { data.request = {} }
           if (data.request != null) {
             _.defaults(data.request, { contentType: 'application/json' })
-            data.request.body = requestBody
+            if (data.attributes == null) {
+              data.request.body = requestBody
+            } else if (data.request.contentType === 'application/json') {
+              const body = JSON.parse(requestBody)
+              _.each(data.attributes, (attribute, key) => {
+                attribute.example = body[key]
+              })
+            }
           }
         }))
       return BbPromise.join(this._invokeFunction(funcPath), data)

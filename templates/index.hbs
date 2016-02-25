@@ -22,27 +22,19 @@ FORMAT: {{format}}
 {{/if}}
 {{#if this.parameters}}
 
-+ Parameters
-{{#each [this.parameters, this.attributes]}}
-{{#each this}}
-
-    + {{@key}}{{#if this.example}}: `{{this.example}}`{{/if}} ({{default this.type 'string'}}, {{#if this.required}}required{{else}}optional{{/if}}) - {{this.description}}
-{{#if this.additionalDescription}}
-
-{{indent this.additionalDescription 8}}
-{{/if}}
-{{#if this.default}}
-
-        + Default: `{{this.default}}`
-{{/if}}
-{{/each}}
-{{/each}}
+{{> parameters this}}
 {{/if}}
 {{#if this.request}}
 
 + Request ({{this.request.contentType}})
+{{#if this.attributes}}
+
+    {{> attributes this}}
+{{/if}}
+{{#if this.request.body}}
 
 {{indent this.request.body 8}}
+{{/if}}
 {{/if}}
 {{#if this.response}}
 

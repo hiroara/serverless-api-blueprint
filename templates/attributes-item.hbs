@@ -1,0 +1,10 @@
+
+    + {{@key}}{{#if this.example}}: `{{this.example}}`{{/if}} ({{default this.type 'string'}}, {{#if this.required}}required{{else}}optional{{/if}}) - {{this.description}}
+{{#if this.additionalDescription}}
+
+{{indent this.additionalDescription 8}}
+{{/if}}
+{{#if this.default}}
+
+        + Default: `{{this.default}}`
+{{/if}}
