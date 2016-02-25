@@ -22,7 +22,7 @@ const _ = require('lodash')
 const Handlebars = require('handlebars')
 Handlebars.registerHelper('indent', (data, level) => {
   const indent = _.times(level, () => ' ').join('')
-  return new Handlebars.SafeString(data.replace(/(^|\n)/g, '$1' + indent))
+  return new Handlebars.SafeString(data.replace(/(^|\n)/g, '$1' + indent).replace(/ *$/g, ''))
 })
 Handlebars.registerHelper('default', (value, defaultValue) => {
   return new Handlebars.SafeString(value || defaultValue)
@@ -176,30 +176,37 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       const format = _.result(component.custom, 'apib.format') || '1A'
       if (format != '1A') { throw util.format('Unsupported format: "%s"', format) }
       return BbPromise.mapSeries(_.values(component.modules), module => this._parseModule(module, component.name))
-        .then(_.flatten)
-        .then(resources => {
+        .then(resourceGroups => {
           return {
             name: component.name,
             displayName: _.result(component.custom, 'apib.name') || component.name,
             description: _.result(component.custom, 'apib.description'),
             format: format,
-            resources: resources,
+            resourceGroups: resourceGroups,
           }
         })
     }
     _parseModule(module, ns) {
       this._logSuccess('  => Module: ' + module.name)
-      const data = {
-        name: module.name,
-        displayName: _.result(module.custom, 'apib.name') || module.name,
-        description: _.result(module.custom, 'apib.description'),
-      }
       const modulePath = [ns, module.name].join('/')
       return BbPromise.mapSeries(_.values(module.functions), func =>
         this._parseFunction(func, modulePath)
       )
         .then(_.flatten)
-        .then(resources => resources.map(resource => _.assign(resource, data)))
+        .then(resources => {
+          return {
+            name: module.name,
+            displayName: _.result(module.custom, 'apib.name') || module.name,
+            description: _.result(module.custom, 'apib.description'),
+            resources: resources.map(resource => _.chain(resource).clone().assign({
+              displayName: _.result(module.custom, `apib.resources.${resource.path}.name`,
+                             _.result(module.custom, `apib.resources.${resource.path.replace(/^\//, '')}.name`,
+                               module.name
+                             )
+                           ),
+            }).value()),
+          }
+        })
     }
     _parseFunction(func, ns) {
       this._logSuccess('    => Function: ' + func.name)
@@ -213,6 +220,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           request: _.result(func.custom, 'apib.request'),
           response: _.result(func.custom, 'apib.response'),
           parameters: _.result(func.custom, 'apib.parameters'),
+          attributes: _.result(func.custom, 'apib.attributes'),
         }, data => {
           if (data.request === true) { data.request = {} }
           if (data.request != null) {
@@ -225,7 +233,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           const actionData = this._buildActionData(data, result)
           return _.chain(endpoints).groupBy(endpoint => endpoint.path).map((actions, path) => {
             return {
-              path: path,
+              path: path.replace(/^\/?/, '/'),
               actions: actions.map(action => _.assign(action, actionData)),
             }
           }).value()
@@ -253,7 +261,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           _.assign(data.response, {
             status: functionResult.data.result.status,
             statusCode: this._statusCodeFor(functionResult.data.result.status),
-            body: this._prettyJSONStringify(functionResult.data.result.response, 2),
+            body: this._prettyJSONStringify(functionResult.data.result.response),
           })
         }
       }).value()
@@ -266,11 +274,8 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       }
     }
 
-    _prettyJSONStringify(obj, indent) {
-      const indentString = _.times(indent, _.constant(' ')).join('')
+    _prettyJSONStringify(obj) {
       return JSON.stringify(obj, null, 2)
-        .split('\n')
-        .map(line => indentString + line).join('\n')
     }
 
     _logHeader(msg) {

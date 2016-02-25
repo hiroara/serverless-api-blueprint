@@ -3,7 +3,10 @@ FORMAT: {{format}}
 # {{displayName}}
 
 {{description}}
-{{#each resources}}
+{{#each resourceGroups}}
+
+# Group {{this.displayName}}
+{{#each this.resources}}
 
 ## {{this.displayName}} [{{this.path}}]
 {{#if this.description}}
@@ -20,30 +23,33 @@ FORMAT: {{format}}
 {{#if this.parameters}}
 
 + Parameters
-{{#each this.parameters}}
+{{#each [this.parameters, this.attributes]}}
+{{#each this}}
 
-  + {{@key}}: {{#if this.example}}`{{this.example}}` {{/if}}({{default this.type 'string'}}, {{#if this.required}}required{{else}}optional{{/if}}) - {{this.description}}
+    + {{@key}}{{#if this.example}}: `{{this.example}}`{{/if}} ({{default this.type 'string'}}, {{#if this.required}}required{{else}}optional{{/if}}) - {{this.description}}
 {{#if this.additionalDescription}}
 
-{{indent this.additionalDescription 4}}
+{{indent this.additionalDescription 8}}
 {{/if}}
 {{#if this.default}}
 
-    + Default: `{{this.default}}`
+        + Default: `{{this.default}}`
 {{/if}}
+{{/each}}
 {{/each}}
 {{/if}}
 {{#if this.request}}
 
 + Request ({{this.request.contentType}})
 
-{{this.request.body}}
+{{indent this.request.body 8}}
 {{/if}}
 {{#if this.response}}
 
 + Response {{this.response.statusCode}} ({{this.response.contentType}})
 
-{{this.response.body}}
+{{indent this.response.body 8}}
 {{/if}}
+{{/each}}
 {{/each}}
 {{/each}}
