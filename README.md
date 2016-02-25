@@ -69,7 +69,7 @@ Thus each API Documentations are generated per component.
 
 #### Module level (`<componentDir>/<moduleDir>/s-module.json`)
 
-Modules on Serverless framework are used as resources.
+Modules on Serverless framework are used as resource groups.
 
 This plugin uses modules as parent definitions of each endpoints.
 
@@ -79,19 +79,28 @@ Then these endpoints are described as same resource defined with informations of
 But these endpoints are defined with difference paths, then it will generate multiple resources with informations of same module.
 
 - `name`
-  - Readable name of resouces
+  - Readable name of resource groups
   - Default: Component name (defined in `s-component.json` at path `name`)
 - `description`
   - Description of resources
   - Default: Blank
+- `resources`
+  - Resource definitions
+  - Default: Empty
+- `resources.<path>.name`
+  - Name of the resource
+  - Default: `<module name>`
 
 ```
 {
   ...
   "custom": {
     "apib": {
-      "name": "Cool Resource",
-      "description": "This is very cool resource!"
+      "name": "Cool Resource Group",
+      "description": "This is very cool resource!",
+      "resources": {
+        "awesomethings": "Awesome Things"
+      }
     }
   },
   ...
@@ -117,6 +126,12 @@ This plugin often uses each functions on Serverless framework as multiple action
 - `request.contentType`
   - Content type of the request
   - Default: `application/json`
+- `request.eventStructure`
+  - Definition of structure of `event.json`
+  - I recommend to define with `s-templates.json`
+- `request.eventStructure.body`
+  - Path of request body in `event.json`
+  - Default: Root of json
 - `response`
   - Indicator of whether or not to generate response example
   - Can contain additional information
@@ -124,26 +139,26 @@ This plugin often uses each functions on Serverless framework as multiple action
 - `response.contentType`
   - Content type of the request
   - Default: `application/json`
-- `parameters`
-  - Parameter definitions
+- `parameters` or `attributes`
+  - Parameter or Attributes definitions
   - Can contain additional information
   - Default: Empty
-- `parameters.<parameter name>.type`
+- `parameters.<parameter name>.type` or `attributes.<parameter name>.type`
   - Parameter type as expected by the API
   - Default: `string`
-- `parameters.<parameter name>.required`
+- `parameters.<parameter name>.required` or `attributes.<parameter name>.required`
   - Specifier of a required parameter
   - Default: `string`
-- `parameters.<parameter name>.example`
+- `parameters.<parameter name>.example` or `attributes.<parameter name>.example`
   - Example value of the parameter
   - Default: None
-- `parameters.<parameter name>.default`
+- `parameters.<parameter name>.default` or `attributes.<parameter name>.default`
   - Default value of the parameter
   - Default: None
-- `parameters.<parameter name>.description`
+- `parameters.<parameter name>.description` or `attributes.<parameter name>.description`
   - Description of the parameter
   - Default: Blank
-- `parameters.<parameter name>.additionalDescription`
+- `parameters.<parameter name>.additionalDescription` or `attributes.<parameter name>.additionalDescription`
   - Additional description of the parameter
   - Default: None
 
@@ -155,10 +170,13 @@ This plugin often uses each functions on Serverless framework as multiple action
       "name": "Create an Cool Resource",
       "description": "Create an cool resource. You should call this API!",
       "request": {
-        "contentType": "application/json"
+        "contentType": "application/json",
+        "eventStructure": {
+          "body": "body"
+        }
       },
       "response": true,
-      "parameters": {
+      "attributes": {
         ...
         "username": {
           "type": "string",
