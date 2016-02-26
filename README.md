@@ -52,6 +52,20 @@ Thus each API Documentations are generated per component.
 - `description`
   - Description of the API
   - Default: Blank
+- `resourceGroups`
+  - Definitions of resource groups
+  - Each keys represent name of each resource groups
+  - Default: Empty
+- `resourceGroups.<name>.description`
+  - Description of the resource group
+  - Default: Blank
+- `resourceGroups.<name>.resources`
+  - Description of the resource group
+  - Each keys represent path of each resources
+  - Default: Blank
+- `resourceGroups.<name>.resources.<resource path>.name`
+  - Name of the resource
+  - Default: <function path>
 
 ```
 {
@@ -60,46 +74,16 @@ Thus each API Documentations are generated per component.
     "apib": {
       "format": "1A",
       "name": "Awesome REST API",
-      "description": "This is Awesome REST API!"
-    }
-  },
-  ...
-}
-```
-
-#### Module level (`<componentDir>/<moduleDir>/s-module.json`)
-
-Modules on Serverless framework are used as resource groups.
-
-This plugin uses modules as parent definitions of each endpoints.
-
-For examples, there are endpoints defined in a module with different methods and same path.
-Then these endpoints are described as same resource defined with informations of the module.
-
-But these endpoints are defined with difference paths, then it will generate multiple resources with informations of same module.
-
-- `name`
-  - Readable name of resource groups
-  - Default: Component name (defined in `s-component.json` at path `name`)
-- `description`
-  - Description of resources
-  - Default: Blank
-- `resources`
-  - Resource definitions
-  - Default: Empty
-- `resources.<path>.name`
-  - Name of the resource
-  - Default: `<module name>`
-
-```
-{
-  ...
-  "custom": {
-    "apib": {
-      "name": "Cool Resource Group",
-      "description": "This is very cool resource!",
-      "resources": {
-        "awesomethings": "Awesome Things"
+      "description": "This is Awesome REST API!",
+      "resourceGroups": {
+        "Users": {
+          "description": "Users registered in this service.",
+          "resources": {
+            "users/me": {
+              "name": "Resource Owner User"
+            }
+          }
+        }
       }
     }
   },
@@ -107,7 +91,7 @@ But these endpoints are defined with difference paths, then it will generate mul
 }
 ```
 
-#### Function level (`<componentDir>/<moduleDir>/<actionDir>/s-action.json`)
+#### Function level (`<componentDir>/[<subFolders>]/<functionDir>/s-function.json`)
 
 Functions on Serverless framework are used as actions.
 
