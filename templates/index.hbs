@@ -5,10 +5,14 @@ FORMAT: {{format}}
 {{description}}
 {{#each resourceGroups}}
 
-# Group {{this.displayName}}
+# Group {{@key}}
+{{#if this.description}}
+
+{{this.description}}
+{{/if}}
 {{#each this.resources}}
 
-## {{this.displayName}} [{{this.path}}]
+## {{this.name}} [{{this.path}}]
 {{#if this.description}}
 
 {{this.description}}

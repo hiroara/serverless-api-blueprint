@@ -28,6 +28,17 @@ Handlebars.registerHelper('default', (value, defaultValue) => {
   return new Handlebars.SafeString(value || defaultValue)
 })
 
+function matchPath(path1, path2) {
+  return path1.replace(/^\//, '') === path2.replace(/^\//, '')
+}
+
+function filterFunctions(functions, resourceGroups) {
+  const resourcePaths = _.flatMap(resourceGroups, (group) => _.keys(group.resources))
+  return _.chain(functions).values()
+    .filter(func => _.some(func.endpoints.map(endpoint => endpoint.path), _.partial(_.includes, resourcePaths)))
+    .value()
+}
+
 module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPlugin Class
 
   const path = require('path')
@@ -192,87 +203,80 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       this._logSuccess(util.format('=> Component: %s', component.name))
       const format = _.result(component.custom, 'apib.format') || '1A'
       if (format != '1A') { throw util.format('Unsupported format: "%s"', format) }
-      return BbPromise.mapSeries(_.values(component.modules), module => this._parseModule(module, component.name))
-        .then(resourceGroups => {
+      const resourceGroups = _.result(component.custom, 'apib.resourceGroups')
+      return BbPromise.mapSeries(filterFunctions(component.functions, resourceGroups), _.bind(this._generateActions, this, component))
+        .then(_.flatten)
+        .then(resources => {
           return {
             name: component.name,
             displayName: _.result(component.custom, 'apib.name') || component.name,
             description: _.result(component.custom, 'apib.description'),
             format: format,
-            resourceGroups: resourceGroups,
+            resourceGroups: _.mapValues(resourceGroups, (group, key) => {
+              return _.assign(group, { resources: _.mapValues(group.resources, (r, path) => _.defaults(r, _.find(resources, resource => matchPath(resource.path, path)))) })
+            }),
           }
         })
     }
-    _parseModule(module, ns) {
-      this._logSuccess('  => Module: ' + module.name)
-      const modulePath = [ns, module.name].join('/')
-      return BbPromise.mapSeries(_.values(module.functions), func =>
-        this._parseFunction(func, modulePath)
-      )
-        .then(_.flatten)
-        .then(resources => {
-          return {
-            name: module.name,
-            displayName: _.result(module.custom, 'apib.name') || module.name,
-            description: _.result(module.custom, 'apib.description'),
-            resources: resources.map(resource => _.chain(resource).clone().assign({
-              displayName: _.result(module.custom, `apib.resources.${resource.path}.name`,
-                             _.result(module.custom, `apib.resources.${resource.path.replace(/^\//, '')}.name`,
-                               module.name
-                             )
-                           ),
-            }).value()),
-          }
-        })
-    }
-    _parseFunction(func, ns) {
-      this._logSuccess('    => Function: ' + func.name)
-      const funcPath = [ns, func.name].join('/')
-      const endpoints = func.endpoints.map(endpoint => this._generateDocsOfEndpoint(endpoint))
-      const data = fs.readFileAsync(path.join(this.S.config.projectPath, funcPath, 'event.json'), 'utf8')
-        .then(event => _.tap({
-          name: func.name,
-          displayName: _.result(func.custom, 'apib.name') || func.name,
-          description: _.result(func.custom, 'apib.description'),
-          request: _.result(func.custom, 'apib.request'),
-          response: _.result(func.custom, 'apib.response'),
-          parameters: _.result(func.custom, 'apib.parameters'),
-          attributes: _.result(func.custom, 'apib.attributes'),
-        }, data => {
-          if (data.request === true) { data.request = {} }
-          if (data.request != null) {
-            _.defaults(data.request, { contentType: 'application/json' })
-
-            const bodyPath = _.result(data.request, 'eventStructure.body')
-            if (data.request.contentType !== 'application/json') {
-              data.request.body = event
-            } else if (data.attributes == null) {
-              data.request.body = this._prettyJSONStringify(this._getBody(JSON.parse(event), bodyPath))
-            } else {
-              const body = this._getBody(JSON.parse(event), bodyPath)
-              _.each(data.attributes, (attribute, key) => {
-                attribute.example = body[key]
-              })
-            }
-          }
-        }))
-      return BbPromise.join(this._invokeFunction(funcPath), data)
+    _generateActions(component, func) {
+      const funcPath = path.join(component.name, path.dirname(func.handler))
+      const funcData = this._parseFunction(component, func, funcPath)
+      const endpoints = func.endpoints.map(_.bind(this._parseEndpoint, this))
+      return BbPromise.join(this._invokeFunction(funcPath), funcData)
         .spread((result, data) => {
           const actionData = this._buildActionData(data, result)
           return _.chain(endpoints).groupBy(endpoint => endpoint.path).map((actions, path) => {
             return {
+              name: funcPath,
               path: path.replace(/^\/?/, '/'),
               actions: actions.map(action => _.assign(action, actionData)),
             }
           }).value()
         })
     }
-    _generateDocsOfEndpoint(endpoint) {
-      this._logSuccess('      => Endpoint: ' + endpoint.method + ' ' + endpoint.path)
+
+    _parseFunction(component, func, funcPath) {
+      this._logSuccess('  => Function: ' + funcPath)
+      return fs.readFileAsync(path.join(this.S.config.projectPath, funcPath, 'event.json'), 'utf8')
+        .then(event => {
+          return {
+            name: func.name,
+            displayName: _.result(func.custom, 'apib.name') || func.name,
+            description: _.result(func.custom, 'apib.description'),
+            request: _.result(func.custom, 'apib.request'),
+            response: _.result(func.custom, 'apib.response'),
+            parameters: _.result(func.custom, 'apib.parameters'),
+            attributes: _.result(func.custom, 'apib.attributes'),
+            event: JSON.parse(event),
+          }
+        })
+        .then(_.bind(this._assignRequestData, this))
+    }
+    _parseEndpoint(endpoint) {
+      this._logSuccess('    => Endpoint: ' + endpoint.method + ' ' + endpoint.path)
       return {
         method: endpoint.method,
         path: endpoint.path,
       }
+    }
+
+    _assignRequestData(data) {
+      return _.tap(data, data => {
+        if (data.request === true) { data.request = {} }
+        if (data.request != null) {
+          _.defaults(data.request, { contentType: 'application/json' })
+
+          const bodyPath = _.result(data.request, 'eventStructure.body')
+          if (data.request.contentType !== 'application/json') {
+            data.request.body = this._prettyJSONStringify(data.event)
+          } else if (data.attributes == null) {
+            data.request.body = this._prettyJSONStringify(this._getBody(data.event, bodyPath))
+          } else {
+            const body = this._getBody(data.event, bodyPath)
+            _.each(data.attributes, (attribute, key) => { attribute.example = body[key] })
+          }
+        }
+      })
     }
 
     _invokeFunction(funcPath) {
