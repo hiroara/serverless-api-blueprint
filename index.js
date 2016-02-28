@@ -35,7 +35,7 @@ function matchPath(path1, path2) {
 function filterFunctions(functions, resourceGroups) {
   const resourcePaths = _.flatMap(resourceGroups, (group) => _.keys(group.resources))
   return _.chain(functions).values()
-    .filter(func => _.some(func.endpoints.map(endpoint => endpoint.path), _.partial(_.includes, resourcePaths)))
+    .filter(func => !_.result(func.custom, 'apib.ignore') && _.some(func.endpoints.map(endpoint => endpoint.path), _.partial(_.includes, resourcePaths)))
     .value()
 }
 
