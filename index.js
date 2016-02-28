@@ -108,6 +108,11 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
             shortcut:    'o',
             description: 'output directory path',
           },
+          {
+            option:      'cache',
+            shortcut:    'c',
+            description: 'cache directory path',
+          },
         ],
         parameters: [ // Use paths when you multiple values need to be input (like an array).  Input looks like this: "serverless custom run module1/function1 module1/function2 module1/function3.  Serverless will automatically turn this into an array and attach it to evt.options within your plugin
           /*
@@ -136,8 +141,9 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
     _generateDocs(evt) {
 
       const _this = this
-      const stage = evt.options.stage || this.S.state.getStages()[0]
-      const region = evt.options.region || this.S.state.getRegions(stage)[0]
+      this.stage = evt.options.stage || this.S.state.getStages()[0]
+      this.region = evt.options.region || this.S.state.getRegions(_this.stage)[0]
+      this.cache = evt.options.cache
 
       return new BbPromise(function (resolve) {
 
@@ -149,7 +155,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
         )
 
         return BbPromise.mapSeries(targetComponents,
-          component => _this._parseComponent.call(_this, component.getPopulated({ stage: stage, region: region }))
+          component => _this._parseComponent.call(_this, component.getPopulated({ stage: _this.stage, region: _this.region }))
         ).then(componentData => {
 
           _this._logHeader('\nGenerate documentations')
@@ -218,13 +224,14 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           }
         })
     }
+
     _generateActions(component, func) {
       const funcPath = path.join(component.name, path.dirname(func.handler))
       const funcData = this._parseFunction(component, func, funcPath)
       const endpoints = func.endpoints.map(_.bind(this._parseEndpoint, this))
-      return BbPromise.join(this._invokeFunction(funcPath), funcData)
+      return funcData.then((data) => this._getFunctionResult(funcPath, data.event).then(result => [result, data]))
         .spread((result, data) => {
-          const actionData = this._buildActionData(data, result)
+          const actionData = this._buildActionData(this._assignRequestData(data, result.event), result.response)
           return _.chain(endpoints).groupBy(endpoint => endpoint.path).map((actions, path) => {
             return {
               name: funcPath,
@@ -250,7 +257,6 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
             event: JSON.parse(event),
           }
         })
-        .then(_.bind(this._assignRequestData, this))
     }
     _parseEndpoint(endpoint) {
       this._logSuccess('    => Endpoint: ' + endpoint.method + ' ' + endpoint.path)
@@ -260,7 +266,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       }
     }
 
-    _assignRequestData(data) {
+    _assignRequestData(data, event) {
       return _.tap(data, data => {
         if (data.request === true) { data.request = {} }
         if (data.request != null) {
@@ -268,32 +274,63 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
 
           const bodyPath = _.result(data.request, 'eventStructure.body')
           if (data.request.contentType !== 'application/json') {
-            data.request.body = this._prettyJSONStringify(data.event)
+            data.request.body = this._prettyJSONStringify(event)
           } else if (data.attributes == null) {
-            data.request.body = this._prettyJSONStringify(this._getBody(data.event, bodyPath))
+            data.request.body = this._prettyJSONStringify(this._getBody(event, bodyPath))
           } else {
-            const body = this._getBody(data.event, bodyPath)
+            const body = this._getBody(event, bodyPath)
             _.each(data.attributes, (attribute, key) => { attribute.example = body[key] })
           }
         }
       })
     }
 
-    _invokeFunction(funcPath) {
+    _getFunctionResult(funcPath, event) {
+      return this._getCacheOfFunction(funcPath)
+        .catch(() => this._invokeFunction(funcPath, event))
+    }
+    _getCachePath(funcPath, filename) {
+      if (filename == null) {
+        return path.join(this.cache, funcPath)
+      } else {
+        return path.join(this.cache, funcPath, filename)
+      }
+    }
+    _getCacheOfFunction(funcPath) {
+      if (this.cache == null) { return BbPromise.reject('Caching is disabled.') }
+      return BbPromise.props({
+        request: fs.readFileAsync(this._getCachePath(funcPath, 'request.json'), 'utf8').then(JSON.parse),
+        response: fs.readFileAsync(this._getCachePath(funcPath, 'response.json'), 'utf8').then(JSON.parse),
+      })
+    }
+    _writeCacheOfFunction(funcPath, event, response) {
+      mkdirp(this._getCachePath(funcPath)).then(() => {
+        return BbPromise.all([
+          fs.writeFileAsync(this._getCachePath(funcPath, 'request.json'), JSON.stringify(event)),
+          fs.writeFileAsync(this._getCachePath(funcPath, 'response.json'), JSON.stringify(response)),
+        ])
+      }).catch((error) => {
+        this._logFailure(error)
+        return fs.unlinkAsync(this._getCachePath(funcPath)).finally(() => { throw error })
+      })
+    }
+    _invokeFunction(funcPath, event) {
       this._logSuccess(util.format('>>> Invoke function: %s', funcPath))
       return this.S.actions.functionRun({ options: { path: funcPath } })
         .tap(() => this._logSuccess(util.format('<<< Finish function: %s', funcPath)))
+        .tap(resp => this.cache != null ? this._writeCacheOfFunction(funcPath, event, resp) : null)
+        .then(resp => { return { response: resp, request: event } })
     }
 
-    _buildActionData(data, functionResult) {
+    _buildActionData(data, response) {
       return _.chain(data).clone().tap(data => {
-        if (data.response === true) { data.response = {} }
+        if (data.response && !_.isObject(data.response)) { data.response = {} }
         if (data.response != null) {
           _.defaults(data.response, { contentType: 'application/json' })
           _.assign(data.response, {
-            status: functionResult.data.result.status,
-            statusCode: this._statusCodeFor(functionResult.data.result.status),
-            body: this._prettyJSONStringify(functionResult.data.result.response),
+            status: response.data.result.status,
+            statusCode: this._statusCodeFor(response.data.result.status),
+            body: this._prettyJSONStringify(response.data.result.response),
           })
         }
       }).value()
