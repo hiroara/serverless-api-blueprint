@@ -218,7 +218,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
             displayName: _.result(component.custom, 'apib.name') || component.name,
             description: _.result(component.custom, 'apib.description'),
             format: format,
-            resourceGroups: _.mapValues(resourceGroups, (group, key) => {
+            resourceGroups: _.mapValues(resourceGroups, (group) => {
               return _.assign(group, { resources: _.mapValues(group.resources, (r, path) => _.defaults(r, _.find(resources, resource => matchPath(resource.path, path)))) })
             }),
           }
