@@ -231,7 +231,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       const endpoints = func.endpoints.map(_.bind(this._parseEndpoint, this))
       return funcData.then((data) => this._getFunctionResult(funcPath, data.event).then(result => [result, data]))
         .spread((result, data) => {
-          const actionData = this._buildActionData(this._assignRequestData(data, result.event), result.response)
+          const actionData = this._buildActionData(this._assignRequestData(data, result.request), result.response)
           return _.chain(endpoints).groupBy(endpoint => endpoint.path).map((actions, path) => {
             return {
               name: funcPath,
