@@ -66,6 +66,34 @@ Thus each API Documentations are generated per component.
 - `resourceGroups.<name>.resources.<resource path>.name`
   - Name of the resource
   - Default: <function path>
+- `dataStructures`
+  - Definitions of data structures
+  - Each keys represent name of each data structure
+  - Default: Empty
+- `dataStructures.<name>.type`
+  - Data type of data structures
+  - Default: `object`
+- `dataStructures.<name>.attributes`
+  - Attributes definitions
+  - Can contain additional information
+- `dataStructures.<name>.attributes.<parameter name>.type`
+  - Parameter type as expected by the API
+  - Default: `string`
+- `dataStructures.<name>.attributes.<parameter name>.required`
+  - Specifier of a required parameter
+  - Default: `string`
+- `dataStructures.<name>.attributes.<parameter name>.example`
+  - Example value of the parameter
+  - Default: None
+- `dataStructures.<name>.attributes.<parameter name>.default`
+  - Default value of the parameter
+  - Default: None
+- `dataStructures.<name>.attributes.<parameter name>.description`
+  - Description of the parameter
+  - Default: Blank
+- `dataStructures.<name>.attributes.<parameter name>.additionalDescription`
+  - Additional description of the parameter
+  - Default: None
 
 ```
 {
@@ -76,6 +104,7 @@ Thus each API Documentations are generated per component.
       "name": "Awesome REST API",
       "description": "This is Awesome REST API!",
       "resourceGroups": {
+        ...
         "Users": {
           "description": "Users registered in this service.",
           "resources": {
@@ -83,7 +112,24 @@ Thus each API Documentations are generated per component.
               "name": "Resource Owner User"
             }
           }
+        },
+        ...
+      },
+      "dataStructures": {
+        ...
+        "Attachment": {
+          "type": "object",
+          "attributes": {
+            ...
+            "name": {
+              "type": "string",
+              "description": "File name",
+              "example": "default.jpg"
+            }
+            ...
+          }
         }
+        ...
       }
     }
   },
@@ -126,25 +172,8 @@ This plugin often uses each functions on Serverless framework as multiple action
 - `parameters` or `attributes`
   - Parameter or Attributes definitions
   - Can contain additional information
+  - Defined in same way as `dataStructures.<name>.attributes`
   - Default: Empty
-- `parameters.<parameter name>.type` or `attributes.<parameter name>.type`
-  - Parameter type as expected by the API
-  - Default: `string`
-- `parameters.<parameter name>.required` or `attributes.<parameter name>.required`
-  - Specifier of a required parameter
-  - Default: `string`
-- `parameters.<parameter name>.example` or `attributes.<parameter name>.example`
-  - Example value of the parameter
-  - Default: None
-- `parameters.<parameter name>.default` or `attributes.<parameter name>.default`
-  - Default value of the parameter
-  - Default: None
-- `parameters.<parameter name>.description` or `attributes.<parameter name>.description`
-  - Description of the parameter
-  - Default: Blank
-- `parameters.<parameter name>.additionalDescription` or `attributes.<parameter name>.additionalDescription`
-  - Additional description of the parameter
-  - Default: None
 
 ```
 {
