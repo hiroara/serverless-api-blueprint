@@ -27,6 +27,13 @@ Handlebars.registerHelper('indent', (data, level) => {
 Handlebars.registerHelper('default', (value, defaultValue) => {
   return new Handlebars.SafeString(value || defaultValue)
 })
+Handlebars.registerHelper('oneLine', (value) => {
+  if (_.isString(value)) {
+    return value.replace(/\n/g, '\\n')
+  } else {
+    return value
+  }
+})
 
 function matchPath(path1, path2) {
   return path1.replace(/^\//, '') === path2.replace(/^\//, '')
@@ -210,6 +217,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       const format = _.result(component.custom, 'apib.format') || '1A'
       if (format != '1A') { throw util.format('Unsupported format: "%s"', format) }
       const resourceGroups = _.result(component.custom, 'apib.resourceGroups')
+      const dataStructures = _.mapValues(_.result(component.custom, 'apib.dataStructures') || {}, (structure, name) => _.defaults(structure, { type: 'object' }))
       return BbPromise.mapSeries(filterFunctions(component.functions, resourceGroups), _.bind(this._generateActions, this, component))
         .then(_.flatten)
         .then(resources => {
@@ -221,6 +229,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
             resourceGroups: _.mapValues(resourceGroups, (group) => {
               return _.assign(group, { resources: _.mapValues(group.resources, (r, path) => _.defaults(r, _.find(resources, resource => matchPath(resource.path, path)))) })
             }),
+            dataStructures: _.result(component.custom, 'apib.dataStructures')
           }
         })
     }
@@ -279,7 +288,10 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
             data.request.body = this._prettyJSONStringify(this._getBody(event, bodyPath))
           } else {
             const body = this._getBody(event, bodyPath)
-            _.each(data.attributes, (attribute, key) => { attribute.example = body[key] })
+            _.chain(data.attributes).keys()
+              .filter((key) => (data.attributes[key].type || 'string') === 'string')
+              .each((key) => { data.attributes[key].example = _.isObject(body[key]) ? JSON.stringify(body[key]) : body[key] })
+              .value()
           }
         }
       })

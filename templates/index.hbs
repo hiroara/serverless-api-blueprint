@@ -49,3 +49,19 @@ FORMAT: {{format}}
 {{/each}}
 {{/each}}
 {{/each}}
+{{#if dataStructures}}
+
+# Data Structures
+{{#each dataStructures}}
+
+## {{@key}} ({{this.type}})
+{{#if this.description}}
+
+{{this.description}}
+{{/if}}
+{{#if this.attributes}}
+
+{{> attributes this}}
+{{/if}}
+{{/each}}
+{{/if}}
