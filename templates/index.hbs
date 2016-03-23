@@ -24,16 +24,20 @@ FORMAT: {{format}}
 
 {{this.description}}
 {{/if}}
-{{#if this.parameters}}
+{{#if this.pathParameters}}
 
-{{> parameters this}}
+{{> parameters this.pathParameters}}
 {{/if}}
 {{#if this.request}}
 
 + Request ({{this.request.contentType}})
+{{#if this.parameters}}
+
+    {{> parameters this.parameters}}
+{{/if}}
 {{#if this.attributes}}
 
-    {{> attributes this}}
+    {{> attributes this.attributes}}
 {{/if}}
 {{#if this.request.body}}
 
@@ -61,7 +65,7 @@ FORMAT: {{format}}
 {{/if}}
 {{#if this.attributes}}
 
-{{> attributes this}}
+{{> attributes this.attributes}}
 {{/if}}
 {{/each}}
 {{/if}}

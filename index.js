@@ -262,6 +262,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
             request: _.result(func.custom, 'apib.request'),
             response: _.result(func.custom, 'apib.response'),
             parameters: _.result(func.custom, 'apib.parameters'),
+            pathParameters: _.result(func.custom, 'apib.pathParameters'),
             attributes: _.result(func.custom, 'apib.attributes'),
             event: JSON.parse(event),
           }
@@ -282,16 +283,20 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           _.defaults(data.request, { contentType: 'application/json' })
 
           const bodyPath = _.result(data.request, 'eventStructure.body')
+          const pathParamsPath = _.result(data.request, 'eventStructure.pathParams')
+
+          if (_.isObject(data.pathParameters)) {
+              this._assignExamples(data.pathParameters, this._getEventData(event, pathParamsPath))
+          }
+
           if (data.request.contentType !== 'application/json') {
             data.request.body = this._prettyJSONStringify(event)
-          } else if (data.attributes == null) {
-            data.request.body = this._prettyJSONStringify(this._getBody(event, bodyPath))
+          } else if (data.attributes == null && data.parameters == null) {
+            data.request.body = this._prettyJSONStringify(this._getEventData(event, bodyPath))
           } else {
-            const body = this._getBody(event, bodyPath)
-            _.chain(data.attributes).keys()
-              .filter((key) => (data.attributes[key].type || 'string') === 'string')
-              .each((key) => { data.attributes[key].example = _.isObject(body[key]) ? JSON.stringify(body[key]) : body[key] })
-              .value()
+            _.each([data.attributes, data.parameters], (attrs) => {
+              this._assignExamples(attrs, this._getEventData(event, bodyPath))
+            })
           }
         }
       })
@@ -355,8 +360,19 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       }
     }
 
-    _getBody(eventData, bodyPath) {
-      return bodyPath == null ? eventData : _.result(eventData, bodyPath, {})
+    _assignExamples(parameters, data) {
+      return _.chain(parameters).keys().tap(keys => {
+        _.chain(keys)
+          .filter(key => (parameters[key].type || 'string') === 'string')
+          .each(key => {
+            const value = data[key]
+            parameters[key].example = _.isObject(value) ? JSON.stringify(value) : value
+          })
+          .value()
+      }).value()
+    }
+    _getEventData(eventData, path) {
+      return path == null ? eventData : _.result(eventData, path, {})
     }
 
     _prettyJSONStringify(obj) {
