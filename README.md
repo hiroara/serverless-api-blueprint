@@ -180,8 +180,8 @@ This plugin often uses each functions on Serverless framework as multiple action
   ...
   "custom": {
     "apib": {
-      "name": "Create an Cool Resource",
-      "description": "Create an cool resource. You should call this API!",
+      "name": "Update an Cool Resource",
+      "description": "Update specific cool resource. You should call this API!",
       "request": {
         "contentType": "application/json",
         "eventStructure": {
@@ -189,6 +189,13 @@ This plugin often uses each functions on Serverless framework as multiple action
         }
       },
       "response": true,
+      "pathParameters": {
+        "cool_resource_id": {
+          "example": "dummy-resource-id",
+          "description": "Identifier of Target Resource",
+          "required": true
+        }
+      },
       "attributes": {
         ...
         "username": {
