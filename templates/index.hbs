@@ -63,9 +63,8 @@ FORMAT: {{format}}
 
 {{this.description}}
 {{/if}}
-{{#if this.attributes}}
-
-{{> attributes this.attributes}}
-{{/if}}
+{{#each this.attributes}}
+{{> attributesItem this}}
+{{/each}}
 {{/each}}
 {{/if}}
