@@ -21,6 +21,7 @@
 const _ = require('lodash')
 const Handlebars = require('handlebars')
 Handlebars.registerHelper('indent', (data, level) => {
+  if (!_.isString(data)) { return }
   const indent = _.times(level, () => ' ').join('')
   return new Handlebars.SafeString(data.replace(/(^|\n)/g, '$1' + indent).replace(/ *$/g, ''))
 })
@@ -42,7 +43,7 @@ function matchPath(path1, path2) {
 function filterFunctions(functions, resourceGroups) {
   const resourcePaths = _.flatMap(resourceGroups, (group) => _.keys(group.resources))
   return _.chain(functions).values()
-    .filter(func => !_.result(func.custom, 'apib.ignore') && _.some(func.endpoints.map(endpoint => endpoint.path), _.partial(_.includes, resourcePaths)))
+    .filter(func => _.has(func.custom, 'apib') && !_.result(func.custom, 'apib.ignore') && _.some(func.endpoints.map(endpoint => endpoint.path), _.partial(_.includes, resourcePaths)))
     .value()
 }
 
@@ -217,7 +218,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       const format = _.result(component.custom, 'apib.format') || '1A'
       if (format != '1A') { throw util.format('Unsupported format: "%s"', format) }
       const resourceGroups = _.result(component.custom, 'apib.resourceGroups')
-      const dataStructures = _.mapValues(_.result(component.custom, 'apib.dataStructures') || {}, (structure, name) => _.defaults(structure, { type: 'object' }))
+      const dataStructures = _.mapValues(_.result(component.custom, 'apib.dataStructures') || {}, (structure) => _.defaults(structure, { type: 'object' }))
       return BbPromise.mapSeries(filterFunctions(component.functions, resourceGroups), _.bind(this._generateActions, this, component))
         .then(_.flatten)
         .then(resources => {
@@ -227,9 +228,14 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
             description: _.result(component.custom, 'apib.description'),
             format: format,
             resourceGroups: _.mapValues(resourceGroups, (group) => {
-              return _.assign(group, { resources: _.mapValues(group.resources, (r, path) => _.defaults(r, _.find(resources, resource => matchPath(resource.path, path)))) })
+              return _.assign(group, {
+                resources: _.mapValues(group.resources, (r, path) => _.defaults(r, {
+                  path: path.replace(/^\/?/, '/'),
+                  actions: _.chain(resources).filter(resource => matchPath(resource.path, path)).flatMap(resource => resource.actions).value(),
+                })),
+              })
             }),
-            dataStructures: _.result(component.custom, 'apib.dataStructures')
+            dataStructures: dataStructures,
           }
         })
     }
@@ -244,7 +250,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           return _.chain(endpoints).groupBy(endpoint => endpoint.path).map((actions, path) => {
             return {
               name: funcPath,
-              path: path.replace(/^\/?/, '/'),
+              path: path,
               actions: actions.map(action => _.assign(action, actionData)),
             }
           }).value()
@@ -286,7 +292,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           const pathParamsPath = _.result(data.request, 'eventStructure.pathParams')
 
           if (_.isObject(data.pathParameters)) {
-              this._assignExamples(data.pathParameters, this._getEventData(event, pathParamsPath))
+            this._assignExamples(data.pathParameters, this._getEventData(event, pathParamsPath))
           }
 
           if (data.request.contentType !== 'application/json') {
