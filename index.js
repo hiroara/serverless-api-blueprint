@@ -342,12 +342,16 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
     _buildActionData(data, response) {
       return _.chain(data).clone().tap(data => {
         if (data.response && !_.isObject(data.response)) { data.response = {} }
+        let responseBody = response.data.result.response
+        if (_.isString(_.result(data.response, 'eventStructure.body'))) {
+          responseBody = _.result(responseBody, data.response.eventStructure.body)
+        }
         if (data.response != null) {
           _.defaults(data.response, { contentType: 'application/json' })
           _.assign(data.response, {
             status: response.data.result.status,
             statusCode: this._statusCodeFor(response.data.result.status),
-            body: this._prettyJSONStringify(response.data.result.response),
+            body: this._prettyJSONStringify(responseBody),
           })
         }
       }).value()
