@@ -1,22 +1,13 @@
 'use strict'
 
-/**
- * Serverless Plugin Boilerplate
- * - Useful example/starter code for writing a plugin for the Serverless Framework.
- * - In a plugin, you can:
- *    - Create a Custom Action that can be called via the CLI or programmatically via a function handler.
- *    - Overwrite a Core Action that is included by default in the Serverless Framework.
- *    - Add a hook that fires before or after a Core Action or a Custom Action
- *    - All of the above at the same time :)
- *
- * - Setup:
- *    - Make a Serverless Project dedicated for plugin development, or use an existing Serverless Project
- *    - Make a "plugins" folder in the root of your Project and copy this codebase into it. Title it your custom plugin name with the suffix "-dev", like "myplugin-dev"
- *    - Run "npm link" in your plugin, then run "npm link myplugin" in the root of your project.
- *    - Start developing!
- *
- * - Good luck, serverless.com :)
- */
+
+const path = require('path')
+const BbPromise = require('bluebird') // Serverless uses Bluebird Promises and we recommend you do to because they provide more than your average Promise :)
+const fs = BbPromise.promisifyAll(require('fs'))
+
+const util = require('util')
+const mkdirp = BbPromise.promisify(require('mkdirp'))
+const chalk = require('chalk')
 
 const _ = require('lodash')
 const Handlebars = require('handlebars')
@@ -47,28 +38,33 @@ function filterFunctions(functions, resourceGroups) {
     .value()
 }
 
-module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPlugin Class
-
-  const path = require('path')
-  const util = require('util')
-  const BbPromise = require('bluebird') // Serverless uses Bluebird Promises and we recommend you do to because they provide more than your average Promise :)
-  const fs = BbPromise.promisifyAll(require('fs'))
-  const mkdirp = BbPromise.promisify(require('mkdirp'))
-  const chalk = require('chalk')
+module.exports = function(S) { // Always pass in the ServerlessPlugin Class
 
   /**
-   * ServerlessPluginBoierplate
+   * Adding/Manipulating Serverless classes
+   * - You can add or manipulate Serverless classes like this
+   *
+   * S.classes.Project.newStaticMethod     = function() { console.log("A new method!") }
+   * S.classes.Project.prototype.newMethod = function() { S.classes.Project.newStaticMethod() }
+   *
    */
 
-  class ServerlessPluginBoilerplate extends ServerlessPlugin {
+
+  /**
+   * Extending the Plugin Class
+   * - Here is how you can add custom Actions and Hooks to Serverless.
+   * - This class is only required if you want to add Actions and Hooks.
+   */
+
+  class APIBlueprintPlugin extends S.classes.Plugin {
 
     /**
      * Constructor
      * - Keep this and don't touch it unless you know what you're doing.
      */
 
-    constructor(S) {
-      super(S)
+    constructor() {
+      super()
     }
 
     /**
@@ -77,7 +73,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
      */
 
     static getName() {
-      return 'com.ari-hiro.' + ServerlessPluginBoilerplate.name
+      return 'com.ari-hiro.' + APIBlueprintPlugin.name
     }
 
     /**
@@ -90,7 +86,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
 
     registerActions() {
 
-      this.S.addAction(this._generateDocs.bind(this), {
+      S.addAction(this._generateDocs.bind(this), {
         handler:       'generateDocs',
         description:   'Generate API Documentation formatted as API Blueprint.',
         context:       'apib',
@@ -109,7 +105,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
           {
             option:      'targets',
             shortcut:    't',
-            description: 'target components',
+            description: 'target names',
           },
           {
             option:      'out',
@@ -149,21 +145,17 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
     _generateDocs(evt) {
 
       const _this = this
-      this.stage = evt.options.stage || this.S.state.getStages()[0]
-      this.region = evt.options.region || this.S.state.getRegions(_this.stage)[0]
+      this.project = S.getProject()
+      this.stage = evt.options.stage || _.chain(this.project.stages).keys().sort().first().value()
+      this.region = evt.options.region || _.chain(this.project.stages[this.stage].regions).keys().sort().first().value()
       this.cache = evt.options.cache
 
       return new BbPromise(function (resolve) {
 
         _this._logHeader('Parse configurations')
 
-        const targetComponents = _this._getTargetComponents(
-          _this._getTargets(evt, _this.S.state.project.custom),
-          _this.S.state.project.components
-        )
-
-        return BbPromise.mapSeries(targetComponents,
-          component => _this._parseComponent.call(_this, component.getPopulated({ stage: _this.stage, region: _this.region }))
+        return BbPromise.mapSeries(_.toPairs(_this.project.custom.apib.targets),
+          pair => _this._parseTarget.apply(_this, pair)
         ).then(componentData => {
 
           _this._logHeader('\nGenerate documentations')
@@ -201,31 +193,21 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       })
     }
 
-    _getTargets(evt, projectCustom) {
-      return evt.options.targets ?
-        evt.options.targets.split(',') : _.result(projectCustom, 'apib.targets')
-    }
-    _getTargetComponents(targets, components) {
-      return targets ? targets.map(target =>
-        _.tap(components[target], component => {
-          if (component == null) { throw util.format('Unknown target named "%s"', target) }
-        })
-      ) : _.values(components)
-    }
-
-    _parseComponent(component) {
-      this._logSuccess(util.format('=> Component: %s', component.name))
-      const format = _.result(component.custom, 'apib.format') || '1A'
+    _parseTarget(key, target) {
+      this._logSuccess(util.format('=> Target: %s', key))
+      const format = _.result(target, 'format') || '1A'
       if (format != '1A') { throw util.format('Unsupported format: "%s"', format) }
-      const resourceGroups = _.result(component.custom, 'apib.resourceGroups')
-      const dataStructures = _.mapValues(_.result(component.custom, 'apib.dataStructures') || {}, (structure) => _.defaults(structure, { type: 'object' }))
-      return BbPromise.mapSeries(filterFunctions(component.functions, resourceGroups), _.bind(this._generateActions, this, component))
+      const resourceGroups = _.result(target, 'resourceGroups')
+      const targetDir = path.join(S.config.projectPath, key, path.sep)
+      const funcs = _.filter(this.project.functions, func => func.getFilePath().indexOf(targetDir) === 0)
+      const dataStructures = _.mapValues(_.result(target, 'dataStructures') || {}, (structure) => _.defaults(structure, { type: 'object' }))
+      return BbPromise.mapSeries(filterFunctions(funcs, resourceGroups), _.bind(this._generateActions, this))
         .then(_.flatten)
         .then(resources => {
           return {
-            name: component.name,
-            displayName: _.result(component.custom, 'apib.name') || component.name,
-            description: _.result(component.custom, 'apib.description'),
+            name: key,
+            displayName: target.name || key,
+            description: _.result(target, 'description'),
             format: format,
             resourceGroups: _.mapValues(resourceGroups, (group) => {
               return _.assign(group, {
@@ -240,11 +222,11 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
         })
     }
 
-    _generateActions(component, func) {
-      const funcPath = path.join(component.name, path.dirname(func.handler))
-      const funcData = this._parseFunction(component, func, funcPath)
+    _generateActions(func) {
+      const funcPath = path.dirname(func.getFilePath())
+      const funcData = this._parseFunction(func.toObjectPopulated({ stage: this.stage, region: this.region }), funcPath)
       const endpoints = func.endpoints.map(_.bind(this._parseEndpoint, this))
-      return funcData.then((data) => this._getFunctionResult(funcPath, data.event).then(result => [result, data]))
+      return funcData.then((data) => this._getFunctionResult(func, funcPath, data.event).then(result => [result, data]))
         .spread((result, data) => {
           const actionData = this._buildActionData(this._assignRequestData(data, result.request), result.response)
           return _.chain(endpoints).groupBy(endpoint => endpoint.path).map((actions, path) => {
@@ -257,14 +239,14 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
         })
     }
 
-    _parseFunction(component, func, funcPath) {
+    _parseFunction(func, funcPath) {
       this._logSuccess('  => Function: ' + funcPath)
-      return fs.readFileAsync(path.join(this.S.config.projectPath, funcPath, 'event.json'), 'utf8')
+      return fs.readFileAsync(path.join(funcPath, 'event.json'), 'utf8')
         .then(event => {
           return {
             name: func.name,
             displayName: _.result(func.custom, 'apib.name') || func.name,
-            description: _.result(func.custom, 'apib.description'),
+            description: _.result(func.custom, 'apib.description') || func.description,
             request: _.result(func.custom, 'apib.request'),
             response: _.result(func.custom, 'apib.response'),
             parameters: _.result(func.custom, 'apib.parameters'),
@@ -308,15 +290,15 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       })
     }
 
-    _getFunctionResult(funcPath, event) {
+    _getFunctionResult(func, funcPath, event) {
       return this._getCacheOfFunction(funcPath)
-        .catch(() => this._invokeFunction(funcPath, event))
+        .catch(() => this._invokeFunction(func, funcPath, event))
     }
     _getCachePath(funcPath, filename) {
       if (filename == null) {
-        return path.join(this.cache, funcPath)
+        return path.join(this.cache, path.relative(S.config.projectPath, funcPath))
       } else {
-        return path.join(this.cache, funcPath, filename)
+        return path.join(this.cache, path.relative(S.config.projectPath, funcPath), filename)
       }
     }
     _getCacheOfFunction(funcPath) {
@@ -337,9 +319,9 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
         return fs.unlinkAsync(this._getCachePath(funcPath)).finally(() => { throw error })
       })
     }
-    _invokeFunction(funcPath, event) {
+    _invokeFunction(func, funcPath, event) {
       this._logSuccess(util.format('>>> Invoke function: %s', funcPath))
-      return this.S.actions.functionRun({ options: { path: funcPath } })
+      return S.actions.functionRun({ options: { name: func.name } })
         .tap(() => this._logSuccess(util.format('<<< Finish function: %s', funcPath)))
         .tap(resp => this.cache != null ? this._writeCacheOfFunction(funcPath, event, resp) : null)
         .then(resp => { return { response: resp, request: event } })
@@ -349,6 +331,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
       return _.chain(data).clone().tap(data => {
         if (data.response && !_.isObject(data.response)) { data.response = {} }
         let responseBody = response.data.result.response
+        if (response.data.result.status === 'error') { throw response.data.result.error }
         if (_.isString(_.result(data.response, 'eventStructure.body'))) {
           responseBody = _.result(responseBody, data.response.eventStructure.body)
         }
@@ -401,7 +384,7 @@ module.exports = function(ServerlessPlugin) { // Always pass in the ServerlessPl
   }
 
   // Export Plugin Class
-  return ServerlessPluginBoilerplate
+  return APIBlueprintPlugin
 
 }
 
