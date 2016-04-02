@@ -8,7 +8,7 @@ This can embed `event.json` as request body and actual response to docs to help 
 
 ## Getting Started
 
-You can install with following steps.
+You can install with following steps. (Requirement: Serverless v0.5 or higher)
 
 ### Install the plugin
 
@@ -21,77 +21,57 @@ All configurations are defined under `apib` namespace.
 #### Project level (`s-project.json`)
 
 - `targets`
-  - Names of target components to generate docs.
-  - Default: All components
-
-```
-{
-  ...
-  "custom": {
-    "apib": {
-      "targets": ["restApi"]
-    }
-  },
-  ...
-}
-```
-
-#### Component level (`<componentDir>/s-component.json`)
-
-Each components on Serverless framework are used as an independent API.
-
-Thus each API Documentations are generated per component.
-
-- `format`
+  - Definitions of target directoreis to generate docs.
+  - Default: empty
+- `targets.<target name>.format`
   - Format type defined in API Blueprint
   - Supported values are `1A` only.
   - Default: `1A`
-- `name`
+- `targets.<target name>.name`
   - Readable name of the API
-  - Default: Component name (defined in `s-component.json` at path `name`)
-- `description`
+  - Default: Target name
+- `targets.<target name>.description`
   - Description of the API
   - Default: Blank
-- `resourceGroups`
+- `targets.<target name>.resourceGroups`
   - Definitions of resource groups
   - Each keys represent name of each resource groups
   - Default: Empty
-- `resourceGroups.<name>.description`
+- `targets.<target name>.resourceGroups.<name>.description`
   - Description of the resource group
   - Default: Blank
-- `resourceGroups.<name>.resources`
+- `targets.<target name>.resourceGroups.<name>.resources`
   - Description of the resource group
   - Each keys represent path of each resources
   - Default: Blank
-- `resourceGroups.<name>.resources.<resource path>.name`
+- `targets.<target name>.resourceGroups.<name>.resources.<resource path>.name`
   - Name of the resource
   - Default: <function path>
-- `dataStructures`
+- `targets.<target name>.dataStructures`
   - Definitions of data structures
   - Each keys represent name of each data structure
   - Default: Empty
-- `dataStructures.<name>.type`
-  - Data type of data structures
+- `targets.<target name>.dataStructures.<structure name>.type` - Data type of data structures
   - Default: `object`
-- `dataStructures.<name>.attributes`
+- `targets.<target name>.dataStructures.<structure name>.attributes`
   - Attributes definitions
   - Can contain additional information
-- `dataStructures.<name>.attributes.<parameter name>.type`
+- `targets.<target name>.dataStructures.<structure name>.attributes.<parameter name>.type`
   - Parameter type as expected by the API
   - Default: `string`
-- `dataStructures.<name>.attributes.<parameter name>.required`
+- `targets.<target name>.dataStructures.<structure name>.attributes.<parameter name>.required`
   - Specifier of a required parameter
   - Default: `string`
-- `dataStructures.<name>.attributes.<parameter name>.example`
+- `targets.<target name>.dataStructures.<structure name>.attributes.<parameter name>.example`
   - Example value of the parameter
   - Default: None
-- `dataStructures.<name>.attributes.<parameter name>.default`
+- `targets.<target name>.dataStructures.<structure name>.attributes.<parameter name>.default`
   - Default value of the parameter
   - Default: None
-- `dataStructures.<name>.attributes.<parameter name>.description`
+- `targets.<target name>.dataStructures.<structure name>.attributes.<parameter name>.description`
   - Description of the parameter
   - Default: Blank
-- `dataStructures.<name>.attributes.<parameter name>.additionalDescription`
+- `targets.<target name>.dataStructures.<structure name>.attributes.<parameter name>.additionalDescription`
   - Additional description of the parameter
   - Default: None
 
@@ -100,36 +80,40 @@ Thus each API Documentations are generated per component.
   ...
   "custom": {
     "apib": {
-      "format": "1A",
-      "name": "Awesome REST API",
-      "description": "This is Awesome REST API!",
-      "resourceGroups": {
-        ...
-        "Users": {
-          "description": "Users registered in this service.",
-          "resources": {
-            "users/me": {
-              "name": "Resource Owner User"
-            }
-          }
-        },
-        ...
-      },
-      "dataStructures": {
-        ...
-        "Attachment": {
-          "type": "object",
-          "attributes": {
+      "targets": {
+        "restApi": {
+          "format": "1A",
+          "name": "Awesome REST API",
+          "description": "This is Awesome REST API!",
+          "resourceGroups": {
             ...
-            "name": {
-              "type": "string",
-              "description": "File name",
-              "example": "default.jpg"
+            "Users": {
+              "description": "Users registered in this service.",
+              "resources": {
+                "users/me": {
+                  "name": "Resource Owner User"
+                }
+              }
+            },
+            ...
+          },
+          "dataStructures": {
+            ...
+            "Attachment": {
+              "type": "object",
+              "attributes": {
+                ...
+                "name": {
+                  "type": "string",
+                  "description": "File name",
+                  "example": "default.jpg"
+                }
+                ...
+              }
             }
             ...
           }
         }
-        ...
       }
     }
   },
@@ -137,7 +121,7 @@ Thus each API Documentations are generated per component.
 }
 ```
 
-#### Function level (`<componentDir>/[<subFolders>]/<functionDir>/s-function.json`)
+#### Function level (`<targetDir>/[<subFolders>]/<functionDir>/s-function.json`)
 
 Functions on Serverless framework are used as actions.
 
