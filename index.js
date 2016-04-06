@@ -321,7 +321,7 @@ module.exports = function(S) { // Always pass in the ServerlessPlugin Class
     }
     _invokeFunction(func, funcPath, event) {
       this._logSuccess(util.format('>>> Invoke function: %s', funcPath))
-      return S.actions.functionRun({ options: { name: func.name } })
+      return S.actions.functionRun({ options: { name: func.name, stage: this.stage, region: this.region } })
         .tap(() => this._logSuccess(util.format('<<< Finish function: %s', funcPath)))
         .tap(resp => this.cache != null ? this._writeCacheOfFunction(funcPath, event, resp) : null)
         .then(resp => { return { response: resp, request: event } })
@@ -331,7 +331,6 @@ module.exports = function(S) { // Always pass in the ServerlessPlugin Class
       return _.chain(data).clone().tap(data => {
         if (data.response && !_.isObject(data.response)) { data.response = {} }
         let responseBody = response.data.result.response
-        if (response.data.result.status === 'error') { throw response.data.result.error }
         if (_.isString(_.result(data.response, 'eventStructure.body'))) {
           responseBody = _.result(responseBody, data.response.eventStructure.body)
         }
