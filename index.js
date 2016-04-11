@@ -21,7 +21,9 @@ Handlebars.registerHelper('default', (value, defaultValue) => {
 })
 Handlebars.registerHelper('oneLine', (value) => {
   if (_.isString(value)) {
-    return value.replace(/\n/g, '\\n')
+    return `\`${value.replace(/\n/g, '\\n')}\``
+  } else if (_.isArray(value)) {
+    return _.map(value, v => `\`${v.replace(/\n/g, '\\n')}\``).join(', ')
   } else {
     return value
   }
@@ -355,10 +357,16 @@ module.exports = function(S) { // Always pass in the ServerlessPlugin Class
     _assignExamples(parameters, data) {
       return _.chain(parameters).keys().tap(keys => {
         _.chain(keys)
-          .filter(key => (parameters[key].type || 'string') === 'string')
           .each(key => {
             const value = data[key]
-            parameters[key].example = _.isObject(value) ? JSON.stringify(value) : value
+            switch (parameters[key].type || 'string') {
+            case 'string':
+              parameters[key].example = _.isObject(value) ? JSON.stringify(value) : value
+              break
+            case 'array[string]':
+              parameters[key].example = value
+              break
+            }
           })
           .value()
       }).value()
