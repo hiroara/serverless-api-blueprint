@@ -359,6 +359,7 @@ module.exports = function(S) { // Always pass in the ServerlessPlugin Class
         _.chain(keys)
           .each(key => {
             const value = data[key]
+            if (_.isUndefined(value)) { return }
             switch (parameters[key].type || 'string') {
             case 'string':
               parameters[key].example = _.isObject(value) ? JSON.stringify(value) : value
